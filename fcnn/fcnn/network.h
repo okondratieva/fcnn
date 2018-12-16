@@ -53,6 +53,7 @@ public:
 		for (int i = 0; i < sizes[2]; i++) {
 			outs[2][i] = 0.0f;
 		}
+		cout << "Configuring done." << endl;
 	}
 
 	void set(float *inputs) {
@@ -66,7 +67,7 @@ public:
 	}
 
 	int predict() {
-		float max = 0.f;
+		float max = outs[2][0];
 		int value = 0;
 		for (int i = 0; i < sizes[2]; i++)
 			if (outs[2][i] > max) {
@@ -124,32 +125,47 @@ public:
 		}
 
 		//outs after second layer (softmax)
+		float max = 0.f;
+		for (unsigned int i = 0; i < sizes[2]; ++i)
+			if (outs[2][i] > max)
+				max = outs[2][i];
 		float sum = 0.f;
 		for (int i = 0; i < sizes[2]; i++) {
 			for (int j = 0; j < sizes[1]; j++) {
-				outs[1][i] += weights[1][i*sizes[1] + j] * outs[1][j];
+				outs[2][i] += weights[1][i*sizes[1] + j] * outs[1][j];
 			}
 			sum += expf(outs[2][i]);
 		}
 		sum = 1.f / sum;
 		for (int i = 0; i < sizes[2]; i++)
-			outs[2][i] = expf(outs[2][i])*sum;
+			outs[2][i] = sum * expf(outs[2][i]);
 	}
-
 	void backPropagation(float learningRate, int label) {
-		//calculate derivatives
-		updateDerivatives(label);
-		
+
+		//for softmax layer
+		for (int i = 0; i < sizes[2]; i++){
+			derivatives[1][i] = outs[2][i];
+		}
+		derivatives[1][label] -= 1.f;
 		//update weights
-		for (int i = 0; i < sizes[2]; ++i) {
+		for (int i = 0; i < sizes[2]; i++) {
 			for (unsigned int j = 0; j < sizes[1]; j++) {
-				weights[1][i*sizes[1] + j] -= derivatives[2][i] * outs[1][j] * learningRate;
+				weights[1][i*sizes[1] + j] -= derivatives[1][i] * outs[1][j] * learningRate;
 			}
 		}
 
-		for (int i = 0; i < sizes[1]; ++i) {
+		//for hidden layer (with tanh activation function)
+		for (int i = 0; i < sizes[1]; i++)
+		{
+			derivatives[0][i] = 0.f;
+			for (unsigned int j = 0; j < sizes[2]; j++)
+				derivatives[0][i] += derivatives[1][j] * weights[1][j*sizes[2] + i];
+			derivatives[0][i] *= 1.f - outs[1][i] * outs[1][i];
+		}
+		//update weights
+		for (int i = 0; i < sizes[1]; i++) {
 			for (unsigned int j = 0; j < sizes[0]; j++) {
-				weights[1][i*sizes[0] + j] -= derivatives[2][i] * outs[0][j] * learningRate;
+				weights[0][i*sizes[0] + j] -= derivatives[0][i] * outs[0][j] * learningRate;
 			}
 		}
 	}
